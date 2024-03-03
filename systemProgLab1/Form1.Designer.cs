@@ -35,6 +35,7 @@
             this.thredsPerCliccEdit = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
+            this.buttonSend = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // startButton
@@ -90,11 +91,22 @@
             this.label2.TabIndex = 5;
             this.label2.Text = "Number of threads to create";
             // 
+            // buttonSend
+            // 
+            this.buttonSend.Location = new System.Drawing.Point(367, 290);
+            this.buttonSend.Name = "buttonSend";
+            this.buttonSend.Size = new System.Drawing.Size(91, 40);
+            this.buttonSend.TabIndex = 6;
+            this.buttonSend.Text = "Send";
+            this.buttonSend.UseVisualStyleBackColor = true;
+            this.buttonSend.Click += new System.EventHandler(this.buttonSend_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.buttonSend);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.thredsPerCliccEdit);
@@ -116,6 +128,7 @@
         private System.Windows.Forms.TextBox thredsPerCliccEdit;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.Button buttonSend;
     }
 }
 

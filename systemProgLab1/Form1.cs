@@ -70,13 +70,35 @@ namespace systemProgLab1
             {
                 eventClose.Set();
                 eventConfirm.WaitOne();
-                threadsBox.Items.RemoveAt(--threadsCounter);
+
+                threadsBox.Items.RemoveAt(threadsCounter--);
+
+                if (threadsBox.Items.Count == 1)
+                {
+                    threadsBox.Items.Clear();
+                    threadsCounter = 0;
+                }
+                    
             }
         }
 
         private void updateList(string name)
         { 
             threadsBox.Items.Add(name);
+        }
+
+        private void buttonSend_Click(object sender, EventArgs e)
+        {
+            int index = threadsBox.SelectedIndex;
+            
+            if (index == 1)
+            {
+
+            }
+            else
+            { 
+
+            }
         }
     }
 }
