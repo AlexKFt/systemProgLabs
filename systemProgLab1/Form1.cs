@@ -5,6 +5,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,16 +13,27 @@ using System.Windows.Forms;
 using System.Windows.Forms.Design;
 
 namespace systemProgLab1
-{
+{ 
     public partial class Form1 : Form
     {
-        Process childProcess = null;
-        EventWaitHandle eventStart = new EventWaitHandle(false, EventResetMode.AutoReset, "StartEvent");
-        EventWaitHandle eventConfirm = new EventWaitHandle(false, EventResetMode.AutoReset, "ConfirmEvent");
-        EventWaitHandle eventClose = new EventWaitHandle(false, EventResetMode.AutoReset, "CloseProcKushch");
-        EventWaitHandle eventExit = new EventWaitHandle(false, EventResetMode.AutoReset, "ExitProcKushch");
+        [DllImport("TransportDLL", CharSet = CharSet.Ansi)]
+        static extern bool startApp();
 
-        int threadsCounter = 0;
+
+        [DllImport("TransportDLL", CharSet = CharSet.Ansi)]
+        static extern void startThread();
+
+        [DllImport("TransportDLL", CharSet = CharSet.Ansi)]
+        static extern void stopThread();
+
+        [DllImport("TransportDLL", CharSet = CharSet.Ansi)]
+        static extern void stopAllThreads();
+            
+        [DllImport("TransportDLL", CharSet = CharSet.Ansi)]
+        static extern void sendMessage(int addr, StringBuilder sb);
+
+        Process childProcess = null;
+
 
         public Form1()
         {
@@ -33,11 +45,9 @@ namespace systemProgLab1
             if (childProcess==null || childProcess.HasExited)
             {
                 threadsBox.Items.Clear();
-                childProcess = Process.Start("ConsoleApplication.exe");
-                eventConfirm.WaitOne();
-                updateList("main");
-                updateList("all threads");
-                threadsCounter++;
+                childProcess = Process.Start("KushchConsoleApp.exe");
+
+                threadsBox.Items.Add("main");             
 
             }
             else
@@ -52,9 +62,17 @@ namespace systemProgLab1
  
                 for (int i = 0; i < n; ++i)
                 {
-                    eventStart.Set();
-                    eventConfirm.WaitOne();
-                    updateList((threadsCounter++).ToString());
+                    startThread();
+                    if (threadsBox.Items.Count == 1)
+                    {
+                        threadsBox.Items.Add((threadsBox.Items.Count).ToString());
+                        threadsBox.Items.Add("All threads");
+                    }
+                    else
+                    {
+                        threadsBox.Items.Insert(threadsBox.Items.Count - 1, (threadsBox.Items.Count - 1).ToString());
+                    }
+                             
                 }         
             }
 
@@ -68,37 +86,41 @@ namespace systemProgLab1
             }
             else
             {
-                eventClose.Set();
-                eventConfirm.WaitOne();
 
-                threadsBox.Items.RemoveAt(threadsCounter--);
+                stopThread();
 
-                if (threadsBox.Items.Count == 1)
+                if (threadsBox.Items.Count > 3)
+                {
+                    threadsBox.Items.RemoveAt(threadsBox.Items.Count - 2);
+                }
+                else if(threadsBox.Items.Count == 3)
+                {
+                    threadsBox.Items.RemoveAt(threadsBox.Items.Count - 1);
+                    threadsBox.Items.RemoveAt(threadsBox.Items.Count - 1);
+                }
+                else
                 {
                     threadsBox.Items.Clear();
-                    threadsCounter = 0;
                 }
                     
             }
         }
 
-        private void updateList(string name)
-        { 
-            threadsBox.Items.Add(name);
-        }
-
         private void buttonSend_Click(object sender, EventArgs e)
         {
             int index = threadsBox.SelectedIndex;
-            
-            if (index == 1)
-            {
+            string message = messageBox.Text;
 
+            
+            if (index == threadsBox.Items.Count - 1)
+            {
+                sendMessage(-1, new StringBuilder(message));
             }
             else
-            { 
-
+            {
+                sendMessage(index, new StringBuilder(message));
             }
         }
+
     }
 }

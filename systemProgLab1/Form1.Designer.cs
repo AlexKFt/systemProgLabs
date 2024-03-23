@@ -13,11 +13,11 @@
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
+            stopAllThreads();
             if (disposing && (components != null))
             {
                 components.Dispose();
             }
-            eventExit.Set();
             base.Dispose(disposing);
         }
 
@@ -36,11 +36,13 @@
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.buttonSend = new System.Windows.Forms.Button();
+            this.messageBox = new System.Windows.Forms.TextBox();
+            this.label3 = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // startButton
             // 
-            this.startButton.Location = new System.Drawing.Point(219, 290);
+            this.startButton.Location = new System.Drawing.Point(86, 134);
             this.startButton.Name = "startButton";
             this.startButton.Size = new System.Drawing.Size(94, 40);
             this.startButton.TabIndex = 0;
@@ -50,7 +52,7 @@
             // 
             // stopButton
             // 
-            this.stopButton.Location = new System.Drawing.Point(508, 290);
+            this.stopButton.Location = new System.Drawing.Point(91, 218);
             this.stopButton.Name = "stopButton";
             this.stopButton.Size = new System.Drawing.Size(89, 40);
             this.stopButton.TabIndex = 1;
@@ -61,14 +63,14 @@
             // threadsBox
             // 
             this.threadsBox.FormattingEnabled = true;
-            this.threadsBox.Location = new System.Drawing.Point(489, 118);
+            this.threadsBox.Location = new System.Drawing.Point(322, 234);
             this.threadsBox.Name = "threadsBox";
             this.threadsBox.Size = new System.Drawing.Size(121, 24);
             this.threadsBox.TabIndex = 2;
             // 
             // thredsPerCliccEdit
             // 
-            this.thredsPerCliccEdit.Location = new System.Drawing.Point(219, 120);
+            this.thredsPerCliccEdit.Location = new System.Drawing.Point(322, 152);
             this.thredsPerCliccEdit.Name = "thredsPerCliccEdit";
             this.thredsPerCliccEdit.Size = new System.Drawing.Size(118, 22);
             this.thredsPerCliccEdit.TabIndex = 3;
@@ -76,7 +78,7 @@
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(533, 71);
+            this.label1.Location = new System.Drawing.Point(363, 200);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(77, 16);
             this.label1.TabIndex = 4;
@@ -85,7 +87,7 @@
             // label2
             // 
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(180, 71);
+            this.label2.Location = new System.Drawing.Point(283, 103);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(172, 16);
             this.label2.TabIndex = 5;
@@ -93,19 +95,38 @@
             // 
             // buttonSend
             // 
-            this.buttonSend.Location = new System.Drawing.Point(367, 290);
+            this.buttonSend.Location = new System.Drawing.Point(566, 339);
             this.buttonSend.Name = "buttonSend";
-            this.buttonSend.Size = new System.Drawing.Size(91, 40);
+            this.buttonSend.Size = new System.Drawing.Size(132, 40);
             this.buttonSend.TabIndex = 6;
             this.buttonSend.Text = "Send";
             this.buttonSend.UseVisualStyleBackColor = true;
             this.buttonSend.Click += new System.EventHandler(this.buttonSend_Click);
+            // 
+            // messageBox
+            // 
+            this.messageBox.Location = new System.Drawing.Point(566, 134);
+            this.messageBox.Multiline = true;
+            this.messageBox.Name = "messageBox";
+            this.messageBox.Size = new System.Drawing.Size(132, 157);
+            this.messageBox.TabIndex = 7;
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Location = new System.Drawing.Point(601, 103);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(97, 16);
+            this.label3.TabIndex = 8;
+            this.label3.Text = "Message Field";
             // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.label3);
+            this.Controls.Add(this.messageBox);
             this.Controls.Add(this.buttonSend);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
@@ -129,6 +150,8 @@
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Button buttonSend;
+        private System.Windows.Forms.TextBox messageBox;
+        private System.Windows.Forms.Label label3;
     }
 }
 
