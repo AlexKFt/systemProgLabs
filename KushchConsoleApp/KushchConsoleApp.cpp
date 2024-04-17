@@ -5,8 +5,10 @@
 #include "framework.h"
 #include "KushchConsoleApp.h"
 #include "Session.h"
-#include "Message.h"
+#include "../TransportDLL/Sockets.h"
 #include "SafeWriting.h"
+#include <list>
+
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -22,20 +24,16 @@ using namespace std;
 
 
 
-struct header
+std::list<Session*> sessions;
+static int threadCounter = 0;
+
+
+
+DWORD WINAPI workFunc(Session* session)
 {
-	int addr;
-	int size;
-};
-__declspec(dllimport) std::string getMessage(header& h);
 
-
-
-
-DWORD WINAPI workFunc(LPVOID _param)
-{
-	auto session = static_cast<Session*>(_param);
 	SafeWrite("session", session->sessionID, "created");
+
 	while (true)
 	{
 		Message m;
@@ -51,112 +49,146 @@ DWORD WINAPI workFunc(LPVOID _param)
 			}
 			case MT_DATA:
 			{
+				HANDLE hFile = CreateFile((to_string(session->sessionID) + ".txt").c_str(),
+					GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, 0);
+				SetFilePointer(hFile, 0, 0, FILE_END);
+				WriteFile(hFile, m.data.c_str(), m.data.size(), NULL, NULL);
 				SafeWrite("session", session->sessionID, "data", m.data);
+				CloseHandle(hFile);
 				break;
 			}
 			}
 		}
 	}
+	
 	return 0;
 }
 
 
-
-void start()
+void ProcessClient(SOCKET hSock)
 {
-	HANDLE confirmEvent = ::CreateEvent(NULL, FALSE, FALSE, "ConfirmEvent");
-	HANDLE startEvent = ::CreateEvent(NULL, FALSE, FALSE, "StartEvent");
-	HANDLE stopEvent = ::CreateEvent(NULL, FALSE, FALSE, "CloseProcKushch");
-	HANDLE exitEvent = ::CreateEvent(NULL, FALSE, FALSE, "ExitProcKushch");
-	HANDLE sendEvent = ::CreateEvent(NULL, FALSE, FALSE, "SendEvent");
+	CSocket socket;
+	socket.Attach(hSock);
+	while (true)
+	{
+		Message mes = receiveMessage(socket);
 
-	HANDLE events[4];
-	events[0] = startEvent;
-	events[1] = stopEvent;
-	events[2] = exitEvent;
-	events[3] = sendEvent;
+		if (mes.header.messageType == MT_START)
+		{
+			sessions.push_back(new Session(++threadCounter));
+			
+			thread t(workFunc, sessions.back());
+			
+			t.detach();
+			sendMessage(socket, Message(MT_DATA, threadCounter, "Ok"));
+		}
+		else if (mes.header.messageType == MT_GET)
+		{
+			std::string ids = "";
+			std::for_each(sessions.begin(), sessions.end(), [&ids](Session* session)
+				{
+					ids += std::to_string(session->sessionID) + ",";
+				});
+
+			sendMessage(socket, Message(MT_DATA, mes.header.addr, ids));
+		}
+		else if (mes.header.messageType == MT_CLOSE)
+		{
+			if (sessions.size() == 0)
+			{
+				sendMessage(socket, Message(MT_DATA, 0, "Empty thread list"));
+				continue;
+			}
+
+			Session* stop_candidate = nullptr;
+			std::for_each(sessions.begin(), sessions.end(), [&mes, &stop_candidate, &socket](Session* session) {
+				if (session->sessionID == mes.header.addr)
+				{
+					session->addMessage(MT_CLOSE);
+					
+					stop_candidate = session;
+					return;
+				}
+				});
+			if (stop_candidate)
+			{
+				sessions.remove(stop_candidate);
+				sendMessage(socket, Message(MT_DATA, mes.header.addr, "Ok"));
+			}
+			else
+			{
+				sendMessage(socket, Message(MT_DATA, -1, "Thread not found"));
+			}
+		}
+		else if (mes.header.messageType == MT_DATA)
+		{
+			bool foundRecipient = false;
+			if (mes.header.addr == -1)
+			{
+				SafeWrite("Main received data: ", mes.data);
+				std::for_each(sessions.begin(), sessions.end(), [&mes](Session* s) {s->addMessage(mes); });
+				foundRecipient = true;
+			}
+			else if (mes.header.addr == 0)
+			{
+				SafeWrite("Main received data: ", mes.data);
+				foundRecipient = true;
+			}
+			else
+				std::for_each(sessions.begin(), sessions.end(), [&mes, &foundRecipient](Session* s) {
+				if (s->sessionID == mes.header.addr)
+				{
+					s->addMessage(mes);
+					foundRecipient = true;
+					return;
+				}
+					});
+			if (foundRecipient)
+				sendMessage(socket, Message(MT_DATA, mes.header.addr, "Ok"));
+			else
+				sendMessage(socket, Message(MT_DATA, -1, "Thread not found"));
+		}
+		else
+		{
+			SafeWrite("Error! Something went wrong");
+			sendMessage(socket, Message(MT_DATA, -1, "Error"));
+		}
+		
+	}
+}
+
+//void LaunchClient()
+//{
+//	STARTUPINFO si = { sizeof(si) };
+//	PROCESS_INFORMATION pi;
+//	::CreateProcess(NULL, (LPSTR)"systemProgLab1.exe", NULL, NULL, TRUE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi);
+//	::CloseHandle(pi.hThread);
+//	::CloseHandle(pi.hProcess);
+//}
 
 
-	std::vector<HANDLE> hThreads;
-	std::vector<Session*> sessions;
+void Server()
+{
+	AfxSocketInit();
+
+	CSocket Server;
+	Server.Create(22002);
+
+	/*for (int i = 0; i < 2; ++i)
+	{
+		LaunchClient();
+	}*/
 
 	while (true)
 	{
-		DWORD dwWaitRes = ::WaitForMultipleObjects(sizeof(events) / sizeof(HANDLE), events, FALSE, INFINITE);
-
-		switch (dwWaitRes)
-		{
-		case WAIT_OBJECT_0:
-			sessions.push_back(new Session(hThreads.size() + 1));
-
-			hThreads.push_back(AfxBeginThread((AFX_THREADPROC)workFunc, (LPVOID)sessions.back(), THREAD_PRIORITY_HIGHEST));
+		if (!Server.Listen())
 			break;
-
-		case WAIT_OBJECT_0 + 1:
-
-			if (!hThreads.size())
-			{
-				::SetEvent(confirmEvent);
-				return;
-			}
-			sessions.back()->addMessage(MT_CLOSE);
-			sessions.pop_back();
-
-			::CloseHandle(hThreads.back());
-			hThreads.pop_back();
-
-			break;
-
-		case WAIT_OBJECT_0 + 2:
-
-			for (int i{ 0 }; i < sessions.size(); ++i)
-			{
-				sessions[i]->addMessage(MT_CLOSE);
-				::CloseHandle(hThreads[i]);
-			}
-			SetEvent(confirmEvent);
-			return;
-
-		case WAIT_OBJECT_0 + 3:
-		{
-
-			header h;
-			std::string message = getMessage(h);
-
-			if (h.addr == -1)
-			{
-				SafeWrite("Main received data: ", message);
-				std::for_each(sessions.begin(), sessions.end(), [&message](Session* s) {s->addMessage(MT_DATA, message); });
-			}
-			else if (h.addr == 0)
-			{
-				SafeWrite("Main received data: ", message);
-			}
-			else
-				for (Session* s : sessions)
-				{
-					if (s->sessionID == h.addr)
-					{
-						s->addMessage(MT_DATA, message);
-						break;
-					}
-				}
-			break;
-		}
-		default:
-
-			std::cout << "There was an error" << std::endl;
-			return ;
-		}
-		::SetEvent(confirmEvent);
+		CSocket s;
+		Server.Accept(s);
+		SafeWrite("Request Accepted ");
+		thread t(ProcessClient, s.Detach());
+		t.detach();
 	}
-
-	WaitForMultipleObjects((DWORD)hThreads.size(), hThreads.data(), TRUE, INFINITE);
-
-	CloseHandle(confirmEvent);
-	CloseHandle(startEvent);
-	CloseHandle(stopEvent);
-	CloseHandle(sendEvent);
 }
 
 
@@ -176,7 +208,7 @@ int main()
         }
         else
         {
-			start();
+			Server();
         }
     }
     else

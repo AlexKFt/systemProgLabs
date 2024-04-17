@@ -1,6 +1,6 @@
 
 #pragma once
-#include "Message.h"
+#include "../TransportDLL/Message.h"
 
 
 class Session
@@ -9,6 +9,7 @@ private:
 	std::queue<Message> messages;
 	CRITICAL_SECTION cs;
 	HANDLE hEvent;
+
 public:
 	int sessionID;
 

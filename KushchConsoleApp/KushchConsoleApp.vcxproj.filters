@@ -33,9 +33,6 @@
     <ClInclude Include="Session.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Message.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SafeWriting.h">
       <Filter>Header Files</Filter>
     </ClInclude>

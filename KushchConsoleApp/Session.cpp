@@ -31,6 +31,6 @@ bool Session::getMessage(Message& m)
 
 void Session::addMessage(MessageTypes messageType, const std::string& data)
 {
-	Message m(messageType, data);
+	Message m(messageType, -1, data);
 	addMessage(m);
 }

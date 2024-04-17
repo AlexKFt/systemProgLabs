@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "framework.h"
 #include "TransportDLL.h"
+#include "Sockets.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -63,92 +64,82 @@ BOOL CTransportDLLApp::InitInstance()
 	return TRUE;
 }
 
+#pragma section("Shared")
+std::unordered_set<int> threadIDs= std::unordered_set<int>();
+#pragma section()
 
-struct header
+#pragma(linker, "/SECTION: Shared RWS")
+
+
+CSocket myconnection;
+std::unordered_set<int> l_threadIDs;	
+
+extern "C" __declspec(dllexport) int Connect(int port = 22002)
 {
-	int addr;
-	int size;
-};
+	AFX_MANAGE_STATE(AfxGetStaticModuleState());
+	AfxSocketInit();
 
-HANDLE g_mutex = CreateMutex(NULL, FALSE, NULL);
-
-
-HANDLE startEvent = ::CreateEvent(NULL, FALSE, FALSE, "StartEvent");
-HANDLE confirmEvent = ::CreateEvent(NULL, FALSE, FALSE, "ConfirmEvent");
-HANDLE stopEvent = ::CreateEvent(NULL, FALSE, FALSE, "CloseProcKushch");
-HANDLE sendEvent = ::CreateEvent(NULL, FALSE, FALSE, "SendEvent");
-HANDLE exitEvent = ::CreateEvent(NULL, FALSE, FALSE, "ExitProcKushch");
-
-
-
-
-
-extern "C"	__declspec(dllexport) void startThread()
+	myconnection.Create();
+	if (!myconnection.Connect("127.0.0.1", port))
 	{
-		AFX_MANAGE_STATE(AfxGetStaticModuleState());
-
-		::SetEvent(startEvent);
-		::WaitForSingleObject(confirmEvent, INFINITE);
+		return 0;
 	}
 
-extern "C" __declspec(dllexport) void stopThread()
-	{
-		AFX_MANAGE_STATE(AfxGetStaticModuleState());
-
-		::SetEvent(stopEvent);
-		::WaitForSingleObject(confirmEvent, INFINITE);
-	}
-
-
-extern "C" __declspec(dllexport) void stopAllThreads()
-	{
-		::SetEvent(exitEvent);
-		::WaitForSingleObject(confirmEvent, INFINITE);
-	}
-
-
-
-
-extern "C" __declspec(dllexport) void sendMessage(int addr, const char* str)
-{
-
-	::WaitForSingleObject(g_mutex, INFINITE);
-
-	header h = { addr, strlen(str) + 1 };
-	HANDLE hFileMap = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, h.size + sizeof(header), "MyMap");
-	char* buff = (char*)MapViewOfFile(hFileMap, FILE_MAP_ALL_ACCESS, 0, 0, h.size + sizeof(header));
-
-	memcpy(buff, &h, sizeof(header));
-	memcpy(buff + sizeof(header), str, h.size);
-
-	::ReleaseMutex(g_mutex);
-
-	UnmapViewOfFile(buff);
-
-
-	::SetEvent(sendEvent);
-	::WaitForSingleObject(confirmEvent, INFINITE);
-	CloseHandle(hFileMap);
+	return 1;
 }
 
-__declspec(dllexport) std::string getMessage(header& h)
+int messageDataToBuffer(Message& response ,char* buffer)
 {
-	::WaitForSingleObject(g_mutex, INFINITE);
+	if (response.header.size > 1)
+	{
+		memcpy(buffer, response.data.c_str(), response.data.size());
+		return response.data.size();
+	}
+	return 0;
+}
 
-	HANDLE hFileMap = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(header), "MyMap");
-	LPVOID buff = MapViewOfFile(hFileMap, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(header));
-	h = *((header*)buff);
-	UnmapViewOfFile(buff);
-	CloseHandle(hFileMap);
+extern "C"	__declspec(dllexport) int startThread(char* buffer)
+{
+	AFX_MANAGE_STATE(AfxGetStaticModuleState());
+	Message message(MT_START);
+	sendMessage(myconnection, message);	
+	Message response = receiveMessage(myconnection);
 
-	int n = h.size + sizeof(header);
-	hFileMap = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, n, "MyMap");
-	buff = MapViewOfFile(hFileMap, FILE_MAP_ALL_ACCESS, 0, 0, n);
+	return messageDataToBuffer(response, buffer);
+}
 
-	std::string s((char*)buff + sizeof(header), h.size);
+extern "C" __declspec(dllexport) int stopThread(int addr, char* buffer)
+{
+	AFX_MANAGE_STATE(AfxGetStaticModuleState());
+	Message message(MT_CLOSE, addr); 
+	sendMessage(myconnection, message);
+	Message response = receiveMessage(myconnection);
 
-	ReleaseMutex(g_mutex);
+	return messageDataToBuffer(response, buffer);
+}
 
-	UnmapViewOfFile(buff);
-	return s;
+extern "C" __declspec(dllexport) int sendMessageTo(int addr, const char* str, char* buffer)
+{
+	AFX_MANAGE_STATE(AfxGetStaticModuleState());
+	Message message(MT_DATA, addr, str);
+	sendMessage(myconnection, message);
+	Message response = receiveMessage(myconnection);
+
+	return messageDataToBuffer(response, buffer);
+}
+
+extern "C" __declspec(dllexport) int getWorkThreads(int maxBufferLength, char* buffer)
+{
+	AFX_MANAGE_STATE(AfxGetStaticModuleState());;
+
+	Message message(MT_GET);
+	sendMessage(myconnection, message);
+	Message response = receiveMessage(myconnection); //data format: id1,id2,id3,
+
+	if (response.header.size > 1)
+	{
+		memcpy_s(buffer, maxBufferLength, response.data.c_str(), response.data.size() - 1);
+		return response.data.size() - 1;
+	}
+	return 0;
 }

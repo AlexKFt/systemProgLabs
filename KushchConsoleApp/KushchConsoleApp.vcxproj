@@ -145,7 +145,6 @@
   <ItemGroup>
     <ClInclude Include="framework.h" />
     <ClInclude Include="KushchConsoleApp.h" />
-    <ClInclude Include="Message.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="SafeWriting.h" />
@@ -164,11 +163,6 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="KushchConsoleApp.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\TransportDLL\TransportDLL.vcxproj">
-      <Project>{b10d64a0-84da-42c5-95d3-a6986fc6c829}</Project>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
