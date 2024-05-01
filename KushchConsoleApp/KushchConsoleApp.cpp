@@ -7,7 +7,7 @@
 #include "Session.h"
 #include "../TransportDLL/Sockets.h"
 #include "SafeWriting.h"
-#include <list>
+#include <map>
 
 
 #ifdef _DEBUG
@@ -23,45 +23,22 @@ using namespace std;
 
 
 
-
-std::list<Session*> sessions;
+int maxID = MR_USER;
+std::map<int, shared_ptr<Session>> sessions;
 static int threadCounter = 0;
 
-
-
-DWORD WINAPI workFunc(Session* session)
+void sendClientListToAll()
 {
-
-	SafeWrite("session", session->sessionID, "created");
-
-	while (true)
-	{
-		Message m;
-		if (session->getMessage(m))
+	std::string ids = "";
+	std::for_each(sessions.begin(), sessions.end(), [&ids](std::pair<const int, std::shared_ptr<Session>> session)
 		{
-			switch (m.header.messageType)
-			{
-			case MT_CLOSE:
-			{
-				SafeWrite("session", session->sessionID, "closed");
-				delete session;
-				return 0;
-			}
-			case MT_DATA:
-			{
-				HANDLE hFile = CreateFile((to_string(session->sessionID) + ".txt").c_str(),
-					GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, 0);
-				SetFilePointer(hFile, 0, 0, FILE_END);
-				WriteFile(hFile, m.data.c_str(), m.data.size(), NULL, NULL);
-				SafeWrite("session", session->sessionID, "data", m.data);
-				CloseHandle(hFile);
-				break;
-			}
-			}
-		}
+			ids += std::to_string(session.second->id) + ",";
+		});
+	Message m(MR_ALL, MR_BROKER, MT_CLIENTS_LIST, ids);
+	for (auto& [id, session] : sessions)
+	{
+		session->add(m);
 	}
-	
-	return 0;
 }
 
 
@@ -69,102 +46,70 @@ void ProcessClient(SOCKET hSock)
 {
 	CSocket socket;
 	socket.Attach(hSock);
-	while (true)
+	Message m;
+	int code = m.receive(socket);
+	cout << m.header.to << ": " << m.header.from << ": " << m.header.messageType << ": " << code << endl;
+
+	switch (code)
 	{
-		Message mes = receiveMessage(socket);
-
-		if (mes.header.messageType == MT_START)
-		{
-			sessions.push_back(new Session(++threadCounter));
-			
-			thread t(workFunc, sessions.back());
-			
-			t.detach();
-			sendMessage(socket, Message(MT_DATA, threadCounter, "Ok"));
-		}
-		else if (mes.header.messageType == MT_GET)
-		{
-			std::string ids = "";
-			std::for_each(sessions.begin(), sessions.end(), [&ids](Session* session)
-				{
-					ids += std::to_string(session->sessionID) + ",";
-				});
-
-			sendMessage(socket, Message(MT_DATA, mes.header.addr, ids));
-		}
-		else if (mes.header.messageType == MT_CLOSE)
-		{
-			if (sessions.size() == 0)
-			{
-				sendMessage(socket, Message(MT_DATA, 0, "Empty thread list"));
-				continue;
-			}
-
-			Session* stop_candidate = nullptr;
-			std::for_each(sessions.begin(), sessions.end(), [&mes, &stop_candidate, &socket](Session* session) {
-				if (session->sessionID == mes.header.addr)
-				{
-					session->addMessage(MT_CLOSE);
-					
-					stop_candidate = session;
-					return;
-				}
-				});
-			if (stop_candidate)
-			{
-				sessions.remove(stop_candidate);
-				sendMessage(socket, Message(MT_DATA, mes.header.addr, "Ok"));
-			}
-			else
-			{
-				sendMessage(socket, Message(MT_DATA, -1, "Thread not found"));
-			}
-		}
-		else if (mes.header.messageType == MT_DATA)
-		{
-			bool foundRecipient = false;
-			if (mes.header.addr == -1)
-			{
-				SafeWrite("Main received data: ", mes.data);
-				std::for_each(sessions.begin(), sessions.end(), [&mes](Session* s) {s->addMessage(mes); });
-				foundRecipient = true;
-			}
-			else if (mes.header.addr == 0)
-			{
-				SafeWrite("Main received data: ", mes.data);
-				foundRecipient = true;
-			}
-			else
-				std::for_each(sessions.begin(), sessions.end(), [&mes, &foundRecipient](Session* s) {
-				if (s->sessionID == mes.header.addr)
-				{
-					s->addMessage(mes);
-					foundRecipient = true;
-					return;
-				}
-					});
-			if (foundRecipient)
-				sendMessage(socket, Message(MT_DATA, mes.header.addr, "Ok"));
-			else
-				sendMessage(socket, Message(MT_DATA, -1, "Thread not found"));
-		}
-		else
-		{
-			SafeWrite("Error! Something went wrong");
-			sendMessage(socket, Message(MT_DATA, -1, "Error"));
-		}
+	case MT_INIT:
+	{
+		auto session = make_shared<Session>(++maxID, m.data);
+		sessions[session->id] = session;
+		Message::send(socket, session->id, MR_BROKER, MT_INIT);
+		sendClientListToAll();
 		
+		break;
 	}
+	case MT_EXIT:
+	{
+		sessions.erase(m.header.from);
+		Message::send(socket, m.header.from, MR_BROKER, MT_CONFIRM);
+		sendClientListToAll();
+		break;
+	}
+	case MT_GETDATA:
+	{
+		auto iSession = sessions.find(m.header.from);
+		if (iSession != sessions.end())
+		{
+			iSession->second->send(socket);
+		}
+		break;
+	}
+	default:
+	{
+		auto iSessionFrom = sessions.find(m.header.from);
+		if (iSessionFrom != sessions.end())
+		{
+			auto iSessionTo = sessions.find(m.header.to);
+			if (iSessionTo != sessions.end())
+			{
+				iSessionTo->second->add(m);
+			}
+			else if (m.header.to == MR_ALL)
+			{
+				for (auto& [id, session] : sessions)
+				{
+					if (id != m.header.from)
+						session->add(m);
+				}
+			}			
+		}
+		break;
+	}
+	}
+	
 }
 
-//void LaunchClient()
-//{
-//	STARTUPINFO si = { sizeof(si) };
-//	PROCESS_INFORMATION pi;
-//	::CreateProcess(NULL, (LPSTR)"systemProgLab1.exe", NULL, NULL, TRUE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi);
-//	::CloseHandle(pi.hThread);
-//	::CloseHandle(pi.hProcess);
-//}
+void LaunchClient()
+{
+	STARTUPINFO si = { sizeof(si) };
+	PROCESS_INFORMATION pi;
+	::CreateProcess(NULL, (LPSTR)"systemProgLab1.exe", NULL, NULL, TRUE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi);
+	::CloseHandle(pi.hThread);
+	::CloseHandle(pi.hProcess);
+}
 
 
 void Server()
@@ -174,10 +119,10 @@ void Server()
 	CSocket Server;
 	Server.Create(22002);
 
-	/*for (int i = 0; i < 2; ++i)
+	for (int i = 0; i < 2; ++i)
 	{
 		LaunchClient();
-	}*/
+	}
 
 	while (true)
 	{

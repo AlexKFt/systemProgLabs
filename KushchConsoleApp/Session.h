@@ -3,34 +3,41 @@
 #include "../TransportDLL/Message.h"
 
 
+using namespace std;
+
 class Session
 {
-private:
-	std::queue<Message> messages;
-	CRITICAL_SECTION cs;
-	HANDLE hEvent;
-
 public:
-	int sessionID;
+	int id;
+	string name;
+	std::queue<Message> messages;
+	CCriticalSection cs;
 
-	Session(int sessionID)
-		: sessionID{ sessionID }
+	Session(int _id, string _name)
+		: id{_id}, name{_name}
 	{
-		InitializeCriticalSection(&cs);
-		hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
 	}
 
-	~Session()
+	void add(Message& m)
 	{
-		DeleteCriticalSection(&cs);
-		CloseHandle(hEvent);
+		CSingleLock lock(&cs, TRUE);
+		messages.push(m);
 	}
 
-	void addMessage(Message& m);
-
-	bool getMessage(Message& m);
-
-	void addMessage(MessageTypes messageType, const std::string& data = "");
+	void send(CSocket& s)
+	{
+		CSingleLock lock(&cs, TRUE);
+		if (messages.empty())
+		{
+			Message::send(s, id, MR_BROKER, MT_NODATA);
+		}
+		else
+		{
+			messages.front().send(s);
+			messages.pop();
+		}
+	};
 
 };
 
