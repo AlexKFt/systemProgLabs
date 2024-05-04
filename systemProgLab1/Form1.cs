@@ -35,7 +35,7 @@ namespace systemProgLab1
 
         const int maxResponseLength = 100;
         StringBuilder responseBuilder = new StringBuilder(maxResponseLength);
-        CancellationTokenSource cancelTokenSource = new CancellationTokenSource();
+        CancellationTokenSource cancelTokenSource;
         bool connectionInitialized = false;
 
         public Form1()
@@ -92,6 +92,7 @@ namespace systemProgLab1
 
             connectionInitialized = true;
             Thread.Sleep(1000);
+            cancelTokenSource = new CancellationTokenSource();
             CancellationToken token = cancelTokenSource.Token;
 
             Task getMessages = Task.Run(() =>
