@@ -1,6 +1,6 @@
 #include "pch.h"
-#include "../TransportDLL/Message.h"
-#include "../TransportDLL/Sockets.h"
+#include "Message.h"
+#include "Sockets.h"
 
 using namespace std;
 

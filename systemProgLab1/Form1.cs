@@ -5,6 +5,8 @@ using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -20,62 +22,46 @@ namespace systemProgLab1
     public partial class Form1 : Form
     {
 
-        [DllImport("TransportDLL", CharSet = CharSet.Ansi)]
-        static extern int Connect(int port);
-
-        [DllImport("TransportDLL", CharSet = CharSet.Ansi)]
-        static extern void Disconnect();
-
-        [DllImport("TransportDLL", CharSet = CharSet.Ansi)]
-        static extern int sendMessageTo(int addr, StringBuilder data);
-
-        [DllImport("TransportDLL", CharSet = CharSet.Ansi)]
-        static extern int ProcessMessages(int maxBufferLength, ref int mes_code, StringBuilder buffer);
-
-
         const int maxResponseLength = 100;
         StringBuilder responseBuilder = new StringBuilder(maxResponseLength);
         CancellationTokenSource cancelTokenSource;
-        bool connectionInitialized = false;
+        bool connectionInitialized = false; 
 
         public Form1()
         {
             InitializeComponent();
         }
-        private void updateReceivedMessages(int responseLength)
+        private void updateReceivedMessages(string message)
         {
             receivedMessageList.Invoke((MethodInvoker)(() =>
             {
-                receivedMessageList.Items.Add(responseBuilder.ToString().Remove(responseLength, responseBuilder.ToString().Length - responseLength));
+                receivedMessageList.Items.Add(message);
                 responseBuilder.Clear();
             }));
             
         }
 
 
-        private void updateThreadsList((int, string) parseString)
+        private void updateThreadsList(string parseString)
         {
             threadsBox.Invoke((MethodInvoker)(() =>
             {
                 threadsBox.Text = String.Empty;
                 threadsBox.Items.Clear();
 
-                int nLength = parseString.Item1;
-                string idString = parseString.Item2; ;
-
-                if (parseString.Item1 == 0)
+                if (parseString.Length == 0)
                     return;
 
 
-                string[] ids = idString.Remove(nLength, idString.Length - nLength).Split(',');
-
+                string[] ids = parseString.Split(',');
+                
 
                 threadsBox.Items.Add(new ComboBoxItem { Text = "main", Value =  0 });
-                foreach (var id in ids)
+                for (int i = 0; i < ids.Length - 1; ++i)
                 {
                     ComboBoxItem item = new ComboBoxItem();
-                    item.Text = id;
-                    item.Value = Int32.Parse(id);
+                    item.Text = ids[i];
+                    item.Value = Int32.Parse(ids[i]);
                     threadsBox.Items.Add(item);
                 }
                 threadsBox.Items.Add(new ComboBoxItem { Text = "All threads", Value = 50 });
@@ -87,11 +73,17 @@ namespace systemProgLab1
        
         private void connectButton_Click(object sender, EventArgs e)
         {
-            int netId = Connect(22002);
-            myId.Text = netId.ToString();
+            if (!connectionInitialized)
+            {
+                var initMessage = Message.send(MessageRecipients.MR_BROKER, MessageTypes.MT_INIT);
+                myId.Text = initMessage.header.to.ToString();
+                connectionInitialized = true;
+            }
+            else
+            {
+                return;
+            }
 
-            connectionInitialized = true;
-            Thread.Sleep(1000);
             cancelTokenSource = new CancellationTokenSource();
             CancellationToken token = cancelTokenSource.Token;
 
@@ -99,19 +91,21 @@ namespace systemProgLab1
                 {
                     while (!token.IsCancellationRequested)
                     {
-                        int messageCode = 0;
-                        int length = ProcessMessages(maxResponseLength, ref messageCode, responseBuilder);
-                        if (messageCode == 3)
+                        var m = Message.send(MessageRecipients.MR_BROKER, MessageTypes.MT_GETDATA);
+                        switch (m.header.type)
                         {
-                            updateReceivedMessages(length);        
+                            case MessageTypes.MT_DATA:
+                                updateReceivedMessages(m.data);
+                                break;
+                            case MessageTypes.MT_CLIENTS_LIST:
+                                updateThreadsList(m.data);
+                                break;
+                            default:
+                                Thread.Sleep(100);
+                                break;
                         }
-                        else if (messageCode == 6)
-                        {
-                            updateThreadsList((length, responseBuilder.ToString()));
-                        }
-                        responseBuilder.Clear();
-                        Thread.Sleep(500);
                     }
+                    Thread.Sleep(1000);
                 },
                 token
             );
@@ -128,7 +122,7 @@ namespace systemProgLab1
         private void disconnectButton_Click(object sender, EventArgs e)
         {
             cancelTokenSource.Cancel();
-            Disconnect();
+            
             connectionInitialized = false;
         }
 
@@ -136,7 +130,7 @@ namespace systemProgLab1
         {
             if (connectionInitialized)
             {
-                sendMessageTo(getIdFromThreadBox(), new StringBuilder(messageBox.Text));
+                Message.send((MessageRecipients) getIdFromThreadBox(), MessageTypes.MT_DATA, messageBox.Text);
             }
         }
 

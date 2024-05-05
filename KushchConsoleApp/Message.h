@@ -1,4 +1,5 @@
-#pragma once 
+#pragma once
+
 
 enum MessageTypes
 {
@@ -7,7 +8,7 @@ enum MessageTypes
 	MT_GETDATA,
 	MT_DATA,
 	MT_NODATA,
-	MT_CONFIRM, 
+	MT_CONFIRM,
 	MT_CLIENTS_LIST
 };
 

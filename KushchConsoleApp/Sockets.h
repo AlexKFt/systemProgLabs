@@ -11,7 +11,7 @@ inline Message receiveMessage(CSocket& s)
 {
 	Message message;
 	MessageHeader mh;
-	
+
 	s.Receive(&mh, sizeof(MessageHeader));
 	message.header = mh;
 
@@ -33,6 +33,5 @@ inline void sendMessage(CSocket& s, const Message& mess)
 		return;
 	s.Send(mess.data.c_str(), mess.data.size());
 }
-
 
 

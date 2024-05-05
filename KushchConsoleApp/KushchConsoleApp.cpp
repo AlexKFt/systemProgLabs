@@ -5,7 +5,7 @@
 #include "framework.h"
 #include "KushchConsoleApp.h"
 #include "Session.h"
-#include "../TransportDLL/Sockets.h"
+#include "Sockets.h"
 #include "SafeWriting.h"
 #include <map>
 

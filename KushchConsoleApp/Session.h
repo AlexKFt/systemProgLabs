@@ -1,6 +1,6 @@
 
 #pragma once
-#include "../TransportDLL/Message.h"
+#include "Message.h"
 
 
 using namespace std;
