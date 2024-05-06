@@ -119,10 +119,10 @@ void Server()
 	CSocket Server;
 	Server.Create(22002);
 
-	for (int i = 0; i < 2; ++i)
+	/*for (int i = 0; i < 2; ++i)
 	{
 		LaunchClient();
-	}
+	}*/
 
 	while (true)
 	{

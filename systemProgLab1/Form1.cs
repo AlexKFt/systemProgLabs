@@ -130,7 +130,8 @@ namespace systemProgLab1
         {
             if (connectionInitialized)
             {
-                Message.send((MessageRecipients) getIdFromThreadBox(), MessageTypes.MT_DATA, messageBox.Text);
+                int id = getIdFromThreadBox();
+                Message.send((MessageRecipients) id, MessageTypes.MT_DATA, $"[{myId.Text}] " + messageBox.Text);
             }
         }
 

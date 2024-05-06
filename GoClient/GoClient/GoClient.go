@@ -41,7 +41,7 @@ func main() {
 		if err != nil {
 			continue
 		}
-
-		MessageCall(addr, MT_DATA, s)
+		message := fmt.Sprintf("[%d] ", myId) + s
+		MessageCall(addr, MT_DATA, message)
 	}
 }
